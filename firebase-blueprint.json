@@ -1,0 +1,56 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User account information and settings",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "WatchlistItem": {
+      "title": "Watchlist Item",
+      "description": "A movie added to a user's watchlist",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number" },
+        "title": { "type": "string" },
+        "poster_path": { "type": "string" },
+        "vote_average": { "type": "number" },
+        "release_date": { "type": "string" },
+        "addedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title"]
+    },
+    "Rating": {
+      "title": "Movie Rating",
+      "description": "User's personal rating for a movie",
+      "type": "object",
+      "properties": {
+        "movieId": { "type": "number" },
+        "rating": { "type": "number", "minimum": 1, "maximum": 5 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["movieId", "rating"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Private user profiles"
+    },
+    "/users/{userId}/watchlist/{movieId}": {
+      "schema": "WatchlistItem",
+      "description": "User specific movie watchlists"
+    },
+    "/users/{userId}/ratings/{movieId}": {
+      "schema": "Rating",
+      "description": "User specific movie ratings"
+    }
+  }
+}
