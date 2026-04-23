@@ -103,11 +103,17 @@ export default function ProfilePage({ onSelectMovie, onClose }: ProfilePageProps
         <div className="flex flex-col md:flex-row items-center md:items-end gap-8 mb-16">
           <div className="relative group">
             <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-rose-500 rounded-full blur opacity-40 group-hover:opacity-75 transition duration-500" />
-            <img 
-              src={user.photoURL || ''} 
-              alt={user.displayName || 'User'} 
-              className="relative w-32 h-32 rounded-full border-2 border-white/10"
-            />
+            {user.photoURL ? (
+              <img 
+                src={user.photoURL} 
+                alt={user.displayName || 'User'} 
+                className="relative w-32 h-32 rounded-full border-2 border-white/10 object-cover"
+              />
+            ) : (
+              <div className="relative w-32 h-32 rounded-full border-2 border-white/10 flex items-center justify-center bg-white/5 text-white/50">
+                <UserIcon className="w-16 h-16" />
+              </div>
+            )}
             <div className="absolute bottom-0 right-0 p-2 bg-indigo-500 rounded-full border-2 border-[#050505]">
               <Settings className="w-4 h-4 text-white" />
             </div>

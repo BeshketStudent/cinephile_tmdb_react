@@ -12,17 +12,16 @@ service cloud.firestore {
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
-    function isVerified() { return request.auth.token.email_verified == true; }
 
     // Phase 4: Drafting the "Fortress" Rules
     
     // User Profile Validation Helper
     function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'email']) &&
+      return data.keys().hasAll(['uid']) &&
              data.uid is string && data.uid.size() <= 128 &&
-             data.email is string && data.email.size() <= 256 &&
-             (data.get('displayName', '') is string && data.get('displayName', '').size() <= 128) &&
-             (data.get('photoURL', '') is string && data.get('photoURL', '').size() <= 1024);
+             (data.get('email', '') == null || data.get('email', '') is string) &&
+             (data.get('displayName', '') == null || data.get('displayName', '') is string) &&
+             (data.get('photoURL', '') == null || data.get('photoURL', '') is string);
     }
 
     // Watchlist Item Validation Helper
@@ -30,7 +29,7 @@ service cloud.firestore {
       return data.keys().hasAll(['id', 'title']) &&
              data.id is number &&
              data.title is string && data.title.size() <= 256 &&
-             (data.get('poster_path', '') is string && data.get('poster_path', '').size() <= 1024) &&
+             (data.get('poster_path', '') == null || data.get('poster_path', '') is string) &&
              (data.get('addedAt', request.time) == request.time);
     }
 
@@ -39,28 +38,28 @@ service cloud.firestore {
       return data.keys().hasAll(['movieId', 'rating']) &&
              data.movieId is number &&
              data.rating is number && data.rating >= 1 && data.rating <= 5 &&
+             (data.get('poster_path', '') == null || data.get('poster_path', '') is string) &&
              (data.get('updatedAt', request.time) == request.time);
     }
 
     match /users/{userId} {
       allow get: if isOwner(userId);
-      allow create: if isOwner(userId) && isValidUser(incoming()) && isVerified();
+      allow create: if isOwner(userId) && isValidUser(incoming());
       allow update: if isOwner(userId) && isValidUser(incoming()) && 
                     (
-                      incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL'])
-                    ) &&
-                    isVerified();
+                      incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'updatedAt'])
+                    );
 
       match /watchlist/{movieId} {
         allow list, get: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidWatchlistItem(incoming()) && isVerified() && isValidId(movieId);
+        allow create: if isOwner(userId) && isValidWatchlistItem(incoming()) && isValidId(movieId);
         allow delete: if isOwner(userId);
       }
 
       match /ratings/{movieId} {
         allow list, get: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidRating(incoming()) && isVerified() && isValidId(movieId);
-        allow update: if isOwner(userId) && isValidRating(incoming()) && isVerified() && 
+        allow create: if isOwner(userId) && isValidRating(incoming()) && isValidId(movieId);
+        allow update: if isOwner(userId) && isValidRating(incoming()) && 
                       incoming().diff(existing()).affectedKeys().hasOnly(['rating', 'updatedAt']);
         allow delete: if isOwner(userId);
       }

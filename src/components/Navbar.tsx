@@ -53,11 +53,17 @@ export default function Navbar({ onSearch, onHome, onWatchlistToggle, onLoginCli
                 className="relative group transition-all active:scale-95"
               >
                 <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-rose-500 rounded-full blur opacity-0 group-hover:opacity-40 transition duration-300" />
-                <img 
-                  src={user.photoURL || ''} 
-                  alt={user.displayName || 'User'} 
-                  className="relative w-9 h-9 rounded-full border border-white/20"
-                />
+                {user.photoURL ? (
+                  <img 
+                    src={user.photoURL} 
+                    alt={user.displayName || 'User'} 
+                    className="relative w-9 h-9 rounded-full border border-white/20 object-cover"
+                  />
+                ) : (
+                  <div className="relative w-9 h-9 rounded-full border border-white/20 flex items-center justify-center bg-white/10 text-white/60">
+                    <UserIcon className="w-5 h-5" />
+                  </div>
+                )}
               </button>
               <button 
                 onClick={logout}

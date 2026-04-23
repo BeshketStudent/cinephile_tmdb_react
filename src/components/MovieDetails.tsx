@@ -368,7 +368,7 @@ export default function MovieDetails({ movie, onClose, onSelectMovie, onAuthRequ
         {/* Similar Movies Section */}
         <section className="mt-20">
           <h3 className="text-2xl font-bold font-display uppercase tracking-tight mb-8">Related Recommendations</h3>
-          <div className="flex overflow-x-auto gap-6 pb-8 scroll-smooth">
+          <div className="flex overflow-x-auto gap-4 sm:gap-6 pb-8 scroll-smooth no-scrollbar px-1">
             {similar.map((m) => (
               <motion.div
                 key={m.id}

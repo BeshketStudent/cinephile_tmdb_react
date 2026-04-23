@@ -54,13 +54,13 @@ export default function App() {
 
   // Prevent dual scrollbars when modals are open
   useEffect(() => {
-    if (selectedMovie || showLogin) {
+    if (selectedMovie || showLogin || showProfile || showWatchlist) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
     }
     return () => { document.body.style.overflow = 'unset'; };
-  }, [selectedMovie, showLogin]);
+  }, [selectedMovie, showLogin, showProfile, showWatchlist]);
 
   useEffect(() => {
     async function updatePopular() {
@@ -390,7 +390,7 @@ function Section({ title, subtitle, movies, onSelect, genres, selectedGenre, onG
           </div>
         )}
       </div>
-      <div className="flex overflow-x-auto gap-4 sm:gap-8 pb-10 px-1 sm:px-0 scroll-smooth scroll-gpu overscroll-x-contain">
+      <div className="flex overflow-x-auto gap-4 sm:gap-8 pb-10 px-1 sm:px-0 scroll-smooth scroll-gpu overscroll-x-contain no-scrollbar">
         {movies.map((movie) => (
           <MovieCard key={movie.id} movie={movie} onClick={onSelect} />
         ))}
