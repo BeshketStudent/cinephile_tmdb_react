@@ -12,8 +12,15 @@
 }
 
 @layer base {
-  body {
+  html, body {
     @apply bg-[#050505] text-white font-sans antialiased selection:bg-brand-accent selection:text-white;
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100%;
+  }
+  #root {
+    overflow-x: hidden;
+    width: 100%;
   }
 
   /* Custom Scrollbar */
@@ -38,6 +45,16 @@
 }
 
 @layer utilities {
+  /* Input Resets */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+
   .glass {
     @apply bg-white/5 backdrop-blur-xl border border-white/10;
   }

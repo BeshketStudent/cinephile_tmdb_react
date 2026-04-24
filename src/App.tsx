@@ -1,18 +1,26 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Movie } from './types';
 import { movieService } from './services/movieService';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import MovieCard from './components/MovieCard';
-import MovieDetails from './components/MovieDetails';
-import LoginModal from './components/LoginModal';
-import ProfilePage from './components/ProfilePage';
 import CustomDropdown from './components/ui/CustomDropdown';
 import { Film, AlertCircle, Heart } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import { db } from './lib/firebase';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { HeroSkeleton, MovieListSkeleton } from './components/Skeletons';
+
+const MovieDetails = lazy(() => import('./components/MovieDetails'));
+const LoginModal = lazy(() => import('./components/LoginModal'));
+const ProfilePage = lazy(() => import('./components/ProfilePage'));
+
+const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy'));
+const TermsOfService = lazy(() => import('./components/TermsOfService'));
+const AdvancedSearch = lazy(() => import('./components/AdvancedSearch'));
+
+type ViewState = 'home' | 'watchlist' | 'profile' | 'search' | 'privacy' | 'terms';
 
 export default function App() {
   const { user } = useAuth();
@@ -22,15 +30,19 @@ export default function App() {
   const [genres, setGenres] = useState<{ id: number; name: string }[]>([]);
   const [popularGenre, setPopularGenre] = useState<number | null>(null);
   const [topRatedGenre, setTopRatedGenre] = useState<number | null>(null);
+  const [popularPage, setPopularPage] = useState(1);
+  const [topRatedPage, setTopRatedPage] = useState(1);
+  const [loadingPopular, setLoadingPopular] = useState(false);
+  const [loadingTopRated, setLoadingTopRated] = useState(false);
   const [searchResults, setSearchResults] = useState<Movie[] | null>(null);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [watchlist, setWatchlist] = useState<Movie[]>([]);
-  const [showWatchlist, setShowWatchlist] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
+  const [currentView, setCurrentView] = useState<ViewState>('home');
   const [showLogin, setShowLogin] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // ... initData ...
   useEffect(() => {
     async function initData() {
       try {
@@ -54,54 +66,88 @@ export default function App() {
 
   // Prevent dual scrollbars when modals are open
   useEffect(() => {
-    if (selectedMovie || showLogin || showProfile || showWatchlist) {
+    if (selectedMovie || showLogin) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
     }
     return () => { document.body.style.overflow = 'unset'; };
-  }, [selectedMovie, showLogin, showProfile, showWatchlist]);
+  }, [selectedMovie, showLogin]);
 
   useEffect(() => {
     async function updatePopular() {
       try {
+        setLoadingPopular(true);
+        window.scrollBy({ left: 0 }); // prevent horizontal jump visually sometimes
+        let data;
         if (popularGenre === null) {
-          const data = await movieService.getPopular();
-          setPopular(data.results);
+          data = await movieService.getPopular(popularPage);
         } else {
-          const data = await movieService.discoverMovies({ 
+          data = await movieService.discoverMovies({ 
             with_genres: popularGenre.toString(),
-            sort_by: 'popularity.desc' 
+            sort_by: 'popularity.desc',
+            page: popularPage.toString()
           });
-          setPopular(data.results);
+        }
+        
+        if (popularPage === 1) {
+            setPopular(data.results);
+        } else {
+            setPopular(prev => {
+                // Filter out duplicates (TMDB API sometimes returns duplicates across pages)
+                const existingIds = prev.map(m => m.id);
+                const newMovies = data.results.filter((m: Movie) => !existingIds.includes(m.id));
+                return [...prev, ...newMovies];
+            });
         }
       } catch (err) {
         console.error(err);
+      } finally {
+        setLoadingPopular(false);
       }
     }
     updatePopular();
-  }, [popularGenre]);
+  }, [popularGenre, popularPage]);
+
+  // Reset page when genre changes
+  useEffect(() => { setPopularPage(1); }, [popularGenre]);
 
   useEffect(() => {
     async function updateTopRated() {
       try {
+        setLoadingTopRated(true);
+        let data;
         if (topRatedGenre === null) {
-          const data = await movieService.getTopRated();
-          setTopRated(data.results);
+          data = await movieService.getTopRated(topRatedPage);
         } else {
-          const data = await movieService.discoverMovies({ 
+          data = await movieService.discoverMovies({ 
             with_genres: topRatedGenre.toString(),
             sort_by: 'vote_average.desc',
-            'vote_count.gte': '500' // Ensure quality
+            'vote_count.gte': '500', // Ensure quality
+            page: topRatedPage.toString()
           });
-          setTopRated(data.results);
+        }
+        
+        if (topRatedPage === 1) {
+            setTopRated(data.results);
+        } else {
+            setTopRated(prev => {
+                const existingIds = prev.map(m => m.id);
+                const newMovies = data.results.filter((m: Movie) => !existingIds.includes(m.id));
+                return [...prev, ...newMovies];
+            });
         }
       } catch (err) {
         console.error(err);
+      } finally {
+        setLoadingTopRated(false);
       }
     }
     updateTopRated();
-  }, [topRatedGenre]);
+  }, [topRatedGenre, topRatedPage]);
+  
+  // Reset page when genre changes
+  useEffect(() => { setTopRatedPage(1); }, [topRatedGenre]);
 
   // Listen to watchlist updates
   useEffect(() => {
@@ -126,18 +172,30 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  const handleSearch = useCallback(async (queryStr: string) => {
+  // Using a ref to store the timeout to prevent excessive API calls
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+
+  const handleSearch = useCallback((queryStr: string) => {
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+    
     if (!queryStr.trim()) {
       setSearchResults(null);
       return;
     }
-    try {
-      const data = await movieService.searchMovies(queryStr);
-      setSearchResults(data.results);
-    } catch (err) {
-      console.error(err);
-    }
-  }, []);
+    
+    const newTimeout = setTimeout(async () => {
+      try {
+        const data = await movieService.searchMovies(queryStr);
+        setSearchResults(data.results);
+      } catch (err) {
+        console.error(err);
+      }
+    }, 400); // 400ms debounce
+    
+    setSearchTimeout(newTimeout);
+  }, [searchTimeout]);
 
   if (error) {
     // ... (Keep existing error screen)
@@ -187,9 +245,22 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white">
-        <Film className="w-12 h-12 text-brand-accent animate-pulse mb-4" />
-        <p className="text-brand-secondary tracking-[0.3em] uppercase text-xs font-bold animate-pulse">Loading Cinematic Experience</p>
+      <div className="min-h-screen bg-[#050505] relative overflow-x-hidden">
+        <Navbar 
+          onSearch={() => {}} 
+          onHome={() => {}} 
+        />
+        <HeroSkeleton />
+        <div className="relative z-10 px-6 lg:px-12 py-20 lg:-mt-20 space-y-28">
+          <section>
+            <div className="flex items-baseline gap-3 mb-12 bg-white/5 w-64 h-10 rounded animate-pulse" />
+            <MovieListSkeleton />
+          </section>
+          <section>
+            <div className="flex items-baseline gap-3 mb-12 bg-white/5 w-64 h-10 rounded animate-pulse" />
+            <MovieListSkeleton />
+          </section>
+        </div>
       </div>
     );
   }
@@ -204,29 +275,25 @@ export default function App() {
         onSearch={handleSearch} 
         onHome={() => {
           setSearchResults(null);
-          setShowWatchlist(false);
-          setShowProfile(false);
+          setCurrentView('home');
         }} 
-        onWatchlistToggle={() => {
-          setShowWatchlist(!showWatchlist);
-          setShowProfile(false);
-        }}
+        onWatchlistToggle={() => setCurrentView(currentView === 'watchlist' ? 'home' : 'watchlist')}
         onLoginClick={() => setShowLogin(true)}
-        onProfileClick={() => {
-          setShowProfile(!showProfile);
-          setShowWatchlist(false);
-        }}
+        onProfileClick={() => setCurrentView(currentView === 'profile' ? 'home' : 'profile')}
+        onAdvancedSearchClick={() => setCurrentView(currentView === 'search' ? 'home' : 'search')}
       />
 
       <AnimatePresence mode="wait">
-        {showProfile ? (
+        {currentView === 'profile' ? (
           <div key="profile-view">
-            <ProfilePage 
-              onSelectMovie={setSelectedMovie} 
-              onClose={() => setShowProfile(false)} 
-            />
+            <Suspense fallback={null}>
+              <ProfilePage 
+                onSelectMovie={setSelectedMovie} 
+                onClose={() => setCurrentView('home')} 
+              />
+            </Suspense>
           </div>
-        ) : showWatchlist ? (
+        ) : currentView === 'watchlist' ? (
           <motion.div
             key="watchlist-view"
             initial={{ opacity: 0, x: 20 }}
@@ -254,7 +321,7 @@ export default function App() {
                 <Heart className="w-16 h-16 mb-6 stroke-1" />
                 <p className="text-xl font-light">Your watchlist is currently empty.</p>
                 <button 
-                  onClick={() => setShowWatchlist(false)}
+                  onClick={() => setCurrentView('home')}
                   className="mt-6 text-indigo-400 hover:underline text-sm font-bold uppercase tracking-widest"
                 >
                   Discover Movies
@@ -262,6 +329,14 @@ export default function App() {
               </div>
             )}
           </motion.div>
+        ) : currentView === 'privacy' ? (
+          <Suspense fallback={null} key="privacy"><PrivacyPolicy /></Suspense>
+        ) : currentView === 'terms' ? (
+          <Suspense fallback={null} key="terms"><TermsOfService /></Suspense>
+        ) : currentView === 'search' ? (
+          <Suspense fallback={null} key="search">
+            <AdvancedSearch onSelectMovie={setSelectedMovie} genres={genres} />
+          </Suspense>
         ) : searchResults ? (
           <motion.div
             key="search-results"
@@ -308,6 +383,8 @@ export default function App() {
                 genres={genres}
                 selectedGenre={popularGenre}
                 onGenreChange={setPopularGenre}
+                onLoadMore={() => setPopularPage(p => p + 1)}
+                isLoadingMore={loadingPopular}
               />
               <Section 
                 title="Critically" 
@@ -317,6 +394,8 @@ export default function App() {
                 genres={genres}
                 selectedGenre={topRatedGenre}
                 onGenreChange={setTopRatedGenre}
+                onLoadMore={() => setTopRatedPage(p => p + 1)}
+                isLoadingMore={loadingTopRated}
               />
             </div>
           </motion.div>
@@ -325,31 +404,37 @@ export default function App() {
 
       <AnimatePresence>
         {selectedMovie && (
-          <MovieDetails
-            movie={selectedMovie}
-            onClose={() => setSelectedMovie(null)}
-            onSelectMovie={setSelectedMovie}
-            onAuthRequired={() => setShowLogin(true)}
-          />
+          <Suspense fallback={null}>
+            <MovieDetails
+              movie={selectedMovie}
+              onClose={() => setSelectedMovie(null)}
+              onSelectMovie={setSelectedMovie}
+              onAuthRequired={() => setShowLogin(true)}
+            />
+          </Suspense>
         )}
       </AnimatePresence>
 
-      <LoginModal isOpen={showLogin} onClose={() => setShowLogin(false)} />
+      <Suspense fallback={null}>
+        <LoginModal isOpen={showLogin} onClose={() => setShowLogin(false)} />
+      </Suspense>
 
       <footer className="mt-20 border-t border-white/5 py-12 px-6 lg:px-12 flex flex-col md:flex-row justify-between items-center gap-8">
-        <div className="flex items-center gap-2">
-          <Film className="w-6 h-6 text-brand-accent" />
-          <span className="text-xl font-bold tracking-tighter uppercase font-display">
-            Ciné<span className="text-brand-accent">phile</span>
-          </span>
+        <div className="flex flex-col items-center md:items-start gap-4">
+          <div className="flex items-center gap-2">
+            <Film className="w-6 h-6 text-brand-accent" />
+            <span className="text-xl font-bold tracking-tighter uppercase font-display">
+              Ciné<span className="text-brand-accent">phile</span>
+            </span>
+          </div>
+          <p className="text-brand-secondary text-[10px] sm:text-xs font-medium tracking-widest uppercase">
+            Powered by TMDB API • Crafted with Passion
+          </p>
         </div>
-        <p className="text-brand-secondary text-[10px] sm:text-xs font-medium tracking-widest uppercase text-center">
-          Powered by TMDB API • Crafted with Passion
-        </p>
-        <div className="flex gap-8 text-[10px] tracking-widest font-black uppercase text-brand-secondary">
-          <a href="#" className="hover:text-brand-accent transition-colors">Privacy</a>
-          <a href="#" className="hover:text-brand-accent transition-colors">Terms</a>
-          <a href="#" className="hover:text-brand-accent transition-colors">Contact</a>
+        
+        <div className="flex flex-wrap justify-center gap-6 text-[10px] tracking-widest font-black uppercase text-brand-secondary">
+          <button onClick={() => setCurrentView('privacy')} className="hover:text-brand-accent transition-colors">Privacy Policy</button>
+          <button onClick={() => setCurrentView('terms')} className="hover:text-brand-accent transition-colors">Terms of Service</button>
         </div>
       </footer>
     </div>
@@ -364,9 +449,11 @@ interface SectionProps {
   genres?: { id: number; name: string }[];
   selectedGenre?: number | null;
   onGenreChange?: (id: number | null) => void;
+  onLoadMore?: () => void;
+  isLoadingMore?: boolean;
 }
 
-function Section({ title, subtitle, movies, onSelect, genres, selectedGenre, onGenreChange }: SectionProps) {
+function Section({ title, subtitle, movies, onSelect, genres, selectedGenre, onGenreChange, onLoadMore, isLoadingMore }: SectionProps) {
   return (
     <section>
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-12">
@@ -394,6 +481,18 @@ function Section({ title, subtitle, movies, onSelect, genres, selectedGenre, onG
         {movies.map((movie) => (
           <MovieCard key={movie.id} movie={movie} onClick={onSelect} />
         ))}
+        {onLoadMore && movies.length > 0 && (
+          <div className="flex-none w-36 sm:w-44 md:w-52 flex items-center justify-center pt-8 pb-16">
+            <button 
+              onClick={onLoadMore}
+              disabled={isLoadingMore}
+              className="px-6 py-3 rounded-full border border-white/20 bg-white/5 hover:bg-white/10 active:scale-95 transition-all flex flex-col items-center gap-2 group disabled:opacity-50"
+            >
+              <div className="w-8 h-8 rounded-full border-2 border-dashed border-white/40 group-hover:border-white/80 group-hover:rotate-180 transition-all duration-500" />
+              <span className="text-xs font-bold uppercase tracking-widest text-white/70 group-hover:text-white">{isLoadingMore ? 'Loading...' : 'Load More'}</span>
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );

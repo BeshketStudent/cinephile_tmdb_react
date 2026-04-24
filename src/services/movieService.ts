@@ -38,14 +38,14 @@ async function tmdbRequest(endpoint: string, params: Record<string, string> = {}
 }
 
 export const movieService = {
-  getTrending: () => tmdbRequest('/trending/movie/day'),
-  getPopular: () => tmdbRequest('/movie/popular'),
-  getTopRated: () => tmdbRequest('/movie/top_rated'),
+  getTrending: (page = 1) => tmdbRequest('/trending/movie/day', { page: page.toString() }),
+  getPopular: (page = 1) => tmdbRequest('/movie/popular', { page: page.toString() }),
+  getTopRated: (page = 1) => tmdbRequest('/movie/top_rated', { page: page.toString() }),
   getMovieDetails: (id: number) => tmdbRequest(`/movie/${id}`),
   getMovieCredits: (id: number) => tmdbRequest(`/movie/${id}/credits`),
   getSimilarMovies: (id: number) => tmdbRequest(`/movie/${id}/similar`),
   getMovieVideos: (id: number) => tmdbRequest(`/movie/${id}/videos`),
-  searchMovies: (query: string) => tmdbRequest('/search/movie', { query }),
+  searchMovies: (query: string, page = 1) => tmdbRequest('/search/movie', { query, page: page.toString() }),
   getGenres: () => tmdbRequest('/genre/movie/list'),
   discoverMovies: (params: Record<string, string>) => tmdbRequest('/discover/movie', params),
 };

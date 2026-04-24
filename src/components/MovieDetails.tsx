@@ -327,6 +327,31 @@ export default function MovieDetails({ movie, onClose, onSelectMovie, onAuthRequ
                 )}
               </div>
 
+              {details && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 py-8 border-y border-white/10 mt-8 mb-12">
+                  <div className="flex flex-col gap-2">
+                    <span className="text-xs uppercase tracking-[0.3em] text-white/40 font-bold">Country</span>
+                    <span className="text-sm font-medium text-white/80">
+                      {details.production_countries && details.production_countries.length > 0 
+                        ? details.production_countries.map(c => c.name).join(', ') 
+                        : 'Data not available'}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <span className="text-xs uppercase tracking-[0.3em] text-white/40 font-bold">Budget</span>
+                    <span className="text-sm font-medium text-white/80">
+                      {details.budget ? `$${details.budget.toLocaleString()}` : 'Data not available'}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <span className="text-xs uppercase tracking-[0.3em] text-white/40 font-bold">Box Office</span>
+                    <span className="text-sm font-medium text-white/80">
+                      {details.revenue ? `$${details.revenue.toLocaleString()}` : 'Data not available'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-12">
                 <section>
                   <h3 className="text-xs uppercase tracking-[0.3em] text-white/40 mb-4 font-bold">Synopsis</h3>
