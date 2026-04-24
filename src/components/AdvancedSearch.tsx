@@ -5,7 +5,7 @@ import { Movie } from '../types';
 import { movieService } from '../services/movieService';
 import MovieCard from './MovieCard';
 import { MovieListSkeleton } from './Skeletons';
-import ReactSlider from 'react-slider';
+import * as Slider from '@radix-ui/react-slider';
 
 // Module-level cache to preserve state when component unmounts
 const searchCache = {
@@ -213,19 +213,28 @@ export default function AdvancedSearch({ onSelectMovie, genres }: AdvancedSearch
               <span className="text-white/80 font-sans tracking-normal">{yearRange[0]} - {yearRange[1]}</span>
             </div>
             <div className="px-3 pt-4 pb-2">
-              <ReactSlider
-                className="w-full h-1.5 bg-white/10 rounded-full relative"
-                thumbClassName="w-5 h-5 bg-white border-[3px] border-indigo-500 rounded-full cursor-grab focus:outline-none focus:ring-4 focus:ring-indigo-500/30 transition-shadow outline-none absolute top-[-7px]"
-                trackClassName="h-1.5 rounded-full"
-                renderTrack={(props, state) => (
-                  <div {...props} className={`${props.className} ${state.index === 1 ? 'bg-indigo-500' : ''}`} />
-                )}
+              <Slider.Root
+                className="relative flex items-center w-full h-1.5 touch-none select-none"
+                value={yearRange}
+                onValueChange={(val) => setYearRange(val)}
+                onValueCommit={() => setPage(1)}
                 min={1888}
                 max={currentYear}
-                value={yearRange}
-                onChange={(val) => setYearRange(val as number[])}
-                onAfterChange={() => setPage(1)}
-              />
+                step={1}
+                minStepsBetweenThumbs={1}
+              >
+                <Slider.Track className="relative h-1.5 w-full grow rounded-full bg-white/10 overflow-hidden">
+                  <Slider.Range className="absolute h-full bg-indigo-500" />
+                </Slider.Track>
+                <Slider.Thumb
+                  className="block w-5 h-5 bg-white border-[3px] border-indigo-500 rounded-full cursor-grab focus:outline-none focus:ring-4 focus:ring-indigo-500/30 transition-shadow outline-none shadow-sm"
+                  aria-label="Min year"
+                />
+                <Slider.Thumb
+                  className="block w-5 h-5 bg-white border-[3px] border-indigo-500 rounded-full cursor-grab focus:outline-none focus:ring-4 focus:ring-indigo-500/30 transition-shadow outline-none shadow-sm"
+                  aria-label="Max year"
+                />
+              </Slider.Root>
             </div>
           </div>
 
